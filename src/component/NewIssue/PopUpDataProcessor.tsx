@@ -1,0 +1,161 @@
+import { useEffect, useState } from "react";
+import NewAssignee from "../Reusable/NewAssignee";
+import { useGetAllIssuesQuery } from "../../state/issueRTK";
+import { useSearchParams } from "react-router-dom";
+
+export type ControllerProps = {
+  controller: any;
+  setController: any;
+  showDropDown: string;
+  setShowDropDown: React.Dispatch<React.SetStateAction<string>>;
+  selectedValue: string;
+  setSelectedValue: React.Dispatch<React.SetStateAction<string>>;
+};
+
+function PopUpDataProcessor({
+  controller,
+  setController,
+  setShowDropDown,
+  showDropDown,
+  selectedValue,
+  setSelectedValue,
+}: ControllerProps) {
+  const [inputValue, setInputValue] = useState<string>("");
+  const [clickRate, setClickRate] = useState<number>(0);
+  const [clearAssigneeRate, setClearAssigneeRate] = useState<number>(0);
+  const [clickIndex, setClickIndex] = useState<number>(0);
+  // 用來偵測是否有點擊選單內的元素，如有就加一，目前想不到更好的方法]
+  const [searchParams] = useSearchParams();
+  const [reRender, setreRender] = useState<number>(0);
+  const query = searchParams.get("query");
+  const { data, isError, isSuccess, isLoading } = useGetAllIssuesQuery({
+    baseType: "repos",
+    type: "/issues",
+    name: "/emil0519",
+    repo: "/testing-issues",
+    query: `/${query}`,
+  });
+  // 改進: call in condition or else it will return 404 in new issue page
+
+  // useEffect(() => console.log(data), [data]);
+
+  useEffect(() => {
+    //處理每張選單勾選的element
+    if (controller !== undefined && controller[clickIndex].data !== undefined) {
+      if (!controller[clickIndex].selected.includes(selectedValue)) {
+        const filteredData = controller[clickIndex].data.filter(
+          (item: any) => item.title === selectedValue
+        );
+        const newController = controller.map((item: any, index: number) => {
+          //update element in array of objects
+          if (index === clickIndex) {
+            return {
+              ...item,
+              selected: [...item.selected, selectedValue],
+              showSelectedData: [...item.showSelectedData, filteredData],
+            };
+          }
+          return { ...item };
+        });
+        setController(newController);
+      } else if (controller[clickIndex].selected.includes(selectedValue)) {
+        const num = controller[clickIndex].selected.indexOf(selectedValue);
+        controller[clickIndex].selected.splice(num, 1);
+        const newController = controller;
+        newController[0].selected = controller[clickIndex].selected.splice(
+          num,
+          1
+        );
+        console.log(newController);
+        // 改進：這邊console.log的話會看到controller改變了，但不會重新render
+        //可能因為改變了object react會沒有反應，目前先讓NewAssignee吃一個number，強制讓它rerender
+        //參見 https://stackoverflow.com/questions/71185474/component-not-re-rendering-after-change-in-an-array-state-in-react
+        setController(newController);
+        setreRender(reRender + 1);
+      }
+    }
+  }, [selectedValue, clickRate]);
+
+  useEffect(() => {
+    // Search function within dropdown menu
+    if (controller === undefined) {
+      return;
+    }
+    if (
+      controller[0] !== undefined &&
+      controller[0].hasOwnProperty("data") &&
+      controller[0].data !== undefined &&
+      inputValue.length !== 0
+    ) {
+      let copyController = JSON.parse(JSON.stringify(controller));
+      //deep copy
+
+      const found = copyController[clickIndex].data.filter(
+        ({ title }: { title: string }) =>
+          new RegExp(inputValue, "i").test(title)
+      );
+
+      const newController = copyController.map((item: any, index: number) => {
+        if (index === clickIndex) {
+          item.data = found;
+        }
+        return { ...item };
+      });
+      setController(newController);
+    } else if (inputValue.length === 0) {
+      let copyController = JSON.parse(JSON.stringify(controller));
+      const newController = copyController.map((item: any, index: number) => {
+        if (index === clickIndex) {
+          item.data = item.defaultData;
+        }
+        return { ...item };
+      });
+
+      setController(newController);
+    }
+  }, [inputValue]);
+
+  useEffect(() => {
+    if (controller === undefined) {
+      return;
+    } else {
+      let copyController = JSON.parse(JSON.stringify(controller));
+      const newController = copyController.map((item: any, index: number) => {
+        if (index === clickIndex) {
+          item.selected = [];
+        }
+        //清空
+        return { ...item };
+      });
+
+      setController(newController);
+    }
+  }, [clearAssigneeRate]);
+
+  if (controller === undefined) {
+    return <></>;
+  }
+  return (
+    <section className="mt-[48px] mr-auto ml-auto flex w-[95%] flex-col med:m-0 med:w-[fit-content]">
+      <NewAssignee
+        showDropDown={showDropDown}
+        setShowDropDown={setShowDropDown}
+        controller={controller}
+        clickIndex={clickIndex}
+        setClickIndex={setClickIndex}
+        inputValue={inputValue}
+        setInputValue={setInputValue}
+        setSelectedValue={setSelectedValue}
+        clickRate={clickRate}
+        setClickRate={setClickRate}
+        clearAssigneeRate={clearAssigneeRate}
+        setClearAssigneeRate={setClearAssigneeRate}
+        setController={setController}
+        data={data}
+        reRender={reRender}
+      />
+    </section>
+  );
+}
+
+export default PopUpDataProcessor;
